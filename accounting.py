@@ -6,7 +6,7 @@ import sys
 import re
 
 
-storage_path='/glusterfs/volumes/gv0/owncloud-data/'
+storage_path='/path/to/owncloud-data/'
 
 logfile='/var/log/accounting.log'
 m=re.compile('@')
