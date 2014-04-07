@@ -48,7 +48,7 @@ def get_date():
 
     return timestamp
 
-def get_timestamp(tm):
+def get_timestamp():
     tm=time.localtime(time.time())
     timestamp=time.strftime('%Y-%m-%d %H:%M:%S',tm)
 
