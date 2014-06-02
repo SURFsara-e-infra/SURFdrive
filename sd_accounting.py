@@ -8,7 +8,12 @@ import re
 import mysql.connector
 
 
-storage_path='/glusterfs/volumes/gv0/owncloud-data/'
+storage_path='/path/to/data/'
+
+db='db'
+dbuser='dbuser'
+dbhost='dbhost'
+dbpasswd='dbpasswd'
 
 logfile='/var/log/accounting.log'
 m=re.compile('@')
@@ -48,7 +53,7 @@ def get_date():
 
     return timestamp
 
-def get_timestamp():
+def get_timestamp(tm):
     tm=time.localtime(time.time())
     timestamp=time.strftime('%Y-%m-%d %H:%M:%S',tm)
 
@@ -56,7 +61,7 @@ def get_timestamp():
 
 def main():
 
-    conn=mysql.connector.Connect(host='<hostip>',user='<user>',password='<password>',database='<database>')
+    conn=mysql.connector.Connect(host=dbhost,user=dbuser,password=dbpasswd,database=db)
     c=conn.cursor()
 
     date=get_date()
