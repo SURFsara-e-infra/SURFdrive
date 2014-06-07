@@ -27,7 +27,7 @@ parsed_files_file='/var/tmp/http_monitoring_parsed_files.txt'
 
 match=re.compile('^(.+)\s+\-\s+(.+)\s+\[(.+)\]\s+\"(.+)\"\s+([0-9]+)\s+\-\s+\"(.+)\"\s+\"(.+)\"')
 match2=re.compile('^(.+)\s+\-\s+(.+)\s+\[(.+)\]\s+\"(.+)\"\s+([0-9]+)\s+([\-0-9]+)\s+\"(.+)\"\s+\"(.+)\"')
-almatch=re.compile('^access\_log\-([0-9]{8})$')
+almatch=re.compile('^access\_log\-[0-9]{8}$')
 
 def get_access_logs(dir):
     files = [ f for f in listdir(dir) if isfile(join(dir,f)) ]
@@ -41,7 +41,7 @@ def get_access_logs(dir):
 
 def parse_file (file):
 
-    with open(file,'r') as f:
+    with open(logdir+'/'+file,'r') as f:
         while True:
             lines = f.readlines(8192)
             if not lines:
@@ -73,14 +73,6 @@ def parse_file (file):
                     else:
                         print "Not able to parse "+line
                         sys.exit(1)
-
-def get_dates_from_alfile_names(alfiles):
-
-    dates=[]
-    for alf in alfiles:
-        dates.append(long(almatch.match(alf).groups()[0]))
-
-    return sorted(dates)
 
 def get_parsed_files_from_file():
     if os.path.isfile(parsed_files_file):
@@ -123,8 +115,8 @@ def main():
     alfiles=get_access_logs(logdir)
     files=get_files_to_parse(alfiles)
     for file in files:
-#        parse_file(file)
-         print file
+        parse_file(file)
+        print file
     finalize_parsing(alfiles)
 
 
