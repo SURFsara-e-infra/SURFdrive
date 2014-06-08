@@ -25,7 +25,7 @@ almatch=re.compile('^access\_log\-[0-9]{8}$')
 opmatch=re.compile('([A-Za-z]+)\s+.+')
 tmmatch=re.compile('([0-9]{2}\/[a-zA-Z]+\/[0-9]{4}\:[0-9]{2}\:[0-9]{2}\:[0-9]{2})\s+([\+\-][0-9]{4})')
 
-sqlcmd=("insert into http_monitoring (host,client,user,request,op,code,size,referer,user_agent,time) values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);")
+sqlcmd="insert into http_monitoring (host,client,user,request,op,code,size,referer,user_agent,time) values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
 
 def parse_timestamp(ts):
     tinfo=tmmatch.match(ts)
@@ -77,6 +77,7 @@ def parse_file (file):
             lines = f.readlines(65536)
             if not lines:
                 break
+            data=[]
             for line in lines:
                 host=gethostname()
                 m2=match2.match(strip(line))
@@ -93,8 +94,7 @@ def parse_file (file):
                     user_agent=list[7]
                     time_string=parse_timestamp(timestamp)
 
-                    data=(host,client,user,request,op,code,size,referer,user_agent,time_string)
-                    c.execute(sqlcmd,data)
+                    data.append((host,client,user,request,op,code,size,referer,user_agent,time_string))
                 else:
                     m=match.match(strip(line))
                     if m != None:
@@ -110,12 +110,12 @@ def parse_file (file):
                         user_agent=list[6]
                         time_string=parse_timestamp(timestamp)
 
-                        data=(host,client,user,request,op,code,size,referer,user_agent,time_string)
-                        c.execute(sqlcmd,data)
+                        data.append((host,client,user,request,op,code,size,referer,user_agent,time_string))
                     else:
                         log("Not able to parse "+line)
                         sys.exit(1)
 
+            c.executemany(sqlcmd,data)
             
     conn.commit()
     conn.close()
