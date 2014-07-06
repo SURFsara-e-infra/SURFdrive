@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import time
+import locale
 import os
 import sys
 
@@ -12,15 +13,18 @@ from email.Utils import COMMASPACE, formatdate
 from email import Encoders
 
 import mysql.connector
+
+locale.setlocale(locale.LC_ALL, 'nl_NL')
+maand=time.strftime('%B %Y',time.gmtime(time.time()-1814400))
 mail_text="""
 
 Hallo SURFdrivers,
 
-Hier is de accounting data van de afgelopen maand.
+Hier is de accounting data van %s.
 
 Mvg,
 
-De accountant
+De accounting database
 """
 
 sender='sender@example.com'
@@ -42,8 +46,8 @@ def log(text):
     f.write(timestamp+':'+text)
     f.close()
 
-def get_date():
-    tm=time.localtime(time.time())
+def get_date(secs=0):
+    tm=time.localtime(time.time()-secs)
     timestamp=time.strftime('%Y-%m-%d',tm)
 
     return timestamp
@@ -60,52 +64,67 @@ def main():
     c=conn.cursor()
 
     date=get_date()
+    yesterday=get_date(86400)
 
     csv_file='/var/tmp/surfdrive_accounting.'+date+'.csv'
 
     file=open(csv_file,'w')
-    file.write('SURFdrive accounting '+date+';\n')
+    file.write('SURFdrive accounting '+maand+';\n')
     file.write(';;;;;;\n')
     file.write('1 GB = '+str(GB)+' bytes;\n')
     file.write('1 TB = '+str(TB)+' bytes;\n')
     file.write(';;;;;;\n')
 
 # write the amount of storage per organisation to file
-    s="select organisation,sum(bytes) from surfdrive_usage where date='"+date+"' group by organisation;"
+    s="select organisation,sum(bytes) from surfdrive_usage where date='"+yesterday+"' group by organisation;"
     c.execute(s)
     file.write('Storage per organisation;\n')
     file.write('organisation;storage (TB);\n')
     for (organisation,bytes) in c:
         terabytes=round(float(bytes)/TB,3)
         file.write(str(organisation)+';'+str(terabytes)+';\n')
+    s="select sum(bytes) from surfdrive_usage where date='"+yesterday+"';"
+    c.execute(s)
+    terabytes=round(float(c.fetchone()[0])/TB,3)
+    file.write('Total storage in TB;'+str(terabytes)+';\n')
     file.write(';;;;;;\n')
 
 # write the number of users per organisation to file
-    s="select organisation,count(eppn) from surfdrive_usage where date='"+date+"' group by organisation;"
+    s="select organisation,count(eppn) from surfdrive_usage where date='"+yesterday+"' group by organisation;"
     c.execute(s)
     file.write('Number of users per organisation;\n')
     file.write('organisation;# users;\n')
     for (organisation,users) in c:
         file.write(str(organisation)+';'+str(users)+';\n')
+    s="select count(eppn) from surfdrive_usage where date='"+yesterday+"';"
+    c.execute(s)
+    file.write('Total number of users;'+str(c.fetchone()[0])+';\n')
     file.write(';;;;;;\n')
 
 # write the number of files per organisation to file
-    s="select organisation,sum(nfiles) from surfdrive_usage where date='"+date+"' group by organisation;"
+    s="select organisation,sum(nfiles) from surfdrive_usage where date='"+yesterday+"' group by organisation;"
     c.execute(s)
     file.write('Number of files per organisation;\n')
     file.write('organisation;# files;\n')
     for (organisation,files) in c:
         file.write(str(organisation)+';'+str(files)+';\n')
+    s="select sum(nfiles) from surfdrive_usage where date='"+yesterday+"';"
+    c.execute(s)
+    file.write('Total number of files;'+str(c.fetchone()[0])+';\n')
     file.write(';;;;;;\n')
 
 # write the average amount of data per user per organisation to file
-    s="select organisation,sum(bytes)/count(eppn) from surfdrive_usage where date='"+date+"' group by organisation;"
+    s="select organisation,sum(bytes)/count(eppn) from surfdrive_usage where date='"+yesterday+"' group by organisation;"
     c.execute(s)
     file.write('Average amount of data per user per organisation;\n')
     file.write('organisation;average storage per user (GB);\n')
     for (organisation,bytes) in c:
         gigabytes=round(float(bytes)/GB,3)
         file.write(str(organisation)+';'+str(gigabytes)+';\n')
+    s="select sum(bytes)/count(eppn) from surfdrive_usage where date='"+yesterday+"';"
+    c.execute(s)
+    gigabytes=round(float(c.fetchone()[0])/GB,3)
+    file.write('Total storage per user in GB;'+str(gigabytes)+';\n')
     file.write(';;;;;;\n')
 
 
@@ -114,7 +133,7 @@ def main():
     conn.commit()
     c.close()
 
-    send_mail(sender,to,'SURFdrive accounting '+date,mail_text,[ csv_file ])
+    send_mail(sender,to,'SURFdrive accounting '+maand,mail_text%(maand),[ csv_file ])
 
 
 def send_mail(send_from, send_to, subject, text, files=[], server="localhost"):
