@@ -15,7 +15,8 @@ from email import Encoders
 import mysql.connector
 
 locale.setlocale(locale.LC_ALL, 'nl_NL')
-maand=time.strftime('%B %Y',time.gmtime(time.time()-1814400))
+twenty_five_days=2160000
+vorige_maand=time.strftime('%B %Y',time.gmtime(time.time()-twenty_five_days))
 mail_text="""
 
 Hallo SURFdrivers,
@@ -66,10 +67,23 @@ def main():
     date=get_date()
     yesterday=get_date(86400)
 
-    csv_file='/var/tmp/surfdrive_accounting.'+date+'.csv'
+    csv_file='/var/tmp/surfdrive_accounting.'+vorige_maand+'.csv'
+
+    s="select distinct(organisation) from surfdrive_usage where date='"+yesterday+"';"
+    c.execute(s)
+    olist=[]
+    for o in c:
+         olist.append(str(o[0]))
+
+    odict={}
+    for organisation in olist:
+        s="select map from orgmap where organisation='"+organisation+"';"
+        c.execute(s)
+        map=str(c.fetchone()[0])
+        odict.update({organisation:map})
 
     file=open(csv_file,'w')
-    file.write('SURFdrive accounting '+maand+';\n')
+    file.write('SURFdrive accounting '+vorige_maand+';\n')
     file.write(';;;;;;\n')
     file.write('1 GB = '+str(GB)+' bytes;\n')
     file.write('1 TB = '+str(TB)+' bytes;\n')
@@ -79,10 +93,10 @@ def main():
     s="select organisation,sum(bytes) from surfdrive_usage where date='"+yesterday+"' group by organisation;"
     c.execute(s)
     file.write('Storage per organisation;\n')
-    file.write('organisation;storage (TB);\n')
+    file.write('eppn;organisation;storage (TB);\n')
     for (organisation,bytes) in c:
         terabytes=round(float(bytes)/TB,3)
-        file.write(str(organisation)+';'+str(terabytes)+';\n')
+        file.write(str(organisation)+';'+odict[organisation]+';'+str(terabytes)+';\n')
     s="select sum(bytes) from surfdrive_usage where date='"+yesterday+"';"
     c.execute(s)
     terabytes=round(float(c.fetchone()[0])/TB,3)
@@ -93,9 +107,9 @@ def main():
     s="select organisation,count(eppn) from surfdrive_usage where date='"+yesterday+"' group by organisation;"
     c.execute(s)
     file.write('Number of users per organisation;\n')
-    file.write('organisation;# users;\n')
+    file.write('eppn;organisation;# users;\n')
     for (organisation,users) in c:
-        file.write(str(organisation)+';'+str(users)+';\n')
+        file.write(str(organisation)+';'+odict[organisation]+';'+str(users)+';\n')
     s="select count(eppn) from surfdrive_usage where date='"+yesterday+"';"
     c.execute(s)
     file.write('Total number of users;'+str(c.fetchone()[0])+';\n')
@@ -105,9 +119,9 @@ def main():
     s="select organisation,sum(nfiles) from surfdrive_usage where date='"+yesterday+"' group by organisation;"
     c.execute(s)
     file.write('Number of files per organisation;\n')
-    file.write('organisation;# files;\n')
+    file.write('eppn;organisation;# files;\n')
     for (organisation,files) in c:
-        file.write(str(organisation)+';'+str(files)+';\n')
+        file.write(str(organisation)+';'+odict[organisation]+';'+str(files)+';\n')
     s="select sum(nfiles) from surfdrive_usage where date='"+yesterday+"';"
     c.execute(s)
     file.write('Total number of files;'+str(c.fetchone()[0])+';\n')
@@ -117,10 +131,10 @@ def main():
     s="select organisation,sum(bytes)/count(eppn) from surfdrive_usage where date='"+yesterday+"' group by organisation;"
     c.execute(s)
     file.write('Average amount of data per user per organisation;\n')
-    file.write('organisation;average storage per user (GB);\n')
+    file.write('eppn;organisation;average storage per user (GB);\n')
     for (organisation,bytes) in c:
         gigabytes=round(float(bytes)/GB,3)
-        file.write(str(organisation)+';'+str(gigabytes)+';\n')
+        file.write(str(organisation)+';'+odict[organisation]+';'+str(gigabytes)+';\n')
     s="select sum(bytes)/count(eppn) from surfdrive_usage where date='"+yesterday+"';"
     c.execute(s)
     gigabytes=round(float(c.fetchone()[0])/GB,3)
@@ -133,7 +147,7 @@ def main():
     conn.commit()
     c.close()
 
-    send_mail(sender,to,'SURFdrive accounting '+maand,mail_text%(maand),[ csv_file ])
+    send_mail(sender,to,'SURFdrive accounting '+vorige_maand,mail_text%(vorige_maand),[ csv_file ])
 
 
 def send_mail(send_from, send_to, subject, text, files=[], server="localhost"):
