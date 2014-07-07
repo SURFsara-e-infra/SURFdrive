@@ -138,7 +138,7 @@ def main():
     s="select sum(bytes)/count(eppn) from surfdrive_usage where date='"+yesterday+"';"
     c.execute(s)
     gigabytes=round(float(c.fetchone()[0])/GB,3)
-    file.write('Total storage per user in GB;'+str(gigabytes)+';\n')
+    file.write('Total average storage per user in GB;'+str(gigabytes)+';\n')
     file.write(';;;;;;\n')
 
 
