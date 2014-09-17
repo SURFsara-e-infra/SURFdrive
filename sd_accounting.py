@@ -8,12 +8,15 @@ import re
 import mysql.connector
 
 
-storage_path='/path/to/data/'
+#Where is the owncloud data stored
+storage_path='/path/to/owncloud-data/'
 
+#Database connection details
 db='db'
-dbuser='dbuser'
 dbhost='dbhost'
+dbuser='dbuser'
 dbpasswd='dbpasswd'
+
 
 logfile='/var/log/accounting.log'
 m=re.compile('@')
@@ -42,8 +45,15 @@ def get_bytes_and_nfiles(dir):
     bytes=0
     nfiles=0
     for root, dirs, files in os.walk(dir):
-        bytes=bytes+sum(os.path.getsize(os.path.join(root, name)) for name in files)
-        nfiles=nfiles+len(files)
+        sbytes=0
+        for name in files:
+            try:
+                sbytes=sbytes+os.path.getsize(os.path.join(root, name))
+                nfiles=nfiles+1
+            except:
+                e=str(sys.exc_info()[0])
+                log('Error:'+e+'\n')
+        bytes=bytes+sbytes
 
     return bytes,nfiles
 
@@ -53,7 +63,7 @@ def get_date():
 
     return timestamp
 
-def get_timestamp(tm):
+def get_timestamp():
     tm=time.localtime(time.time())
     timestamp=time.strftime('%Y-%m-%d %H:%M:%S',tm)
 
@@ -61,11 +71,13 @@ def get_timestamp(tm):
 
 def main():
 
-    conn=mysql.connector.Connect(host=dbhost,user=dbuser,password=dbpasswd,database=db)
-    c=conn.cursor()
 
     date=get_date()
+    sql_file='/var/tmp/surfdrive_accounting.'+date+'.sql'
     eppns=get_eppns()
+    clist=[]
+    file=open(sql_file,'w')
+
     for eppn in eppns:
         m3=m2.match(eppn)
         if m3==None:
@@ -76,6 +88,16 @@ def main():
 #        print date+';'+eppn+';'+organisation+';'+str(bytes)+';'+str(nfiles)
         s="insert into surfdrive_usage (date,eppn,organisation,bytes,nfiles) values ('"+date+"','"+eppn+"','"+organisation+"',"+ str(bytes)+","+str(nfiles)+");"
 #        print s
+        file.write(s+'\n')
+        clist.append(s)
+
+    file.close()
+
+    conn=mysql.connector.Connect(host=dbhost,user=dbuser,password=dbpasswd,database=db)
+    c=conn.cursor()
+
+    for s in clist:
+
         c.execute(s)
 
     conn.commit()
