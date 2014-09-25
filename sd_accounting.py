@@ -4,6 +4,7 @@ import time
 import os
 import sys
 import re
+import threading
 
 import mysql.connector
 
@@ -11,16 +12,29 @@ import mysql.connector
 #Where is the owncloud data stored
 storage_path='/path/to/owncloud-data/'
 
+#Number of active threads
+nthreads=4
+
 #Database connection details
 db='db'
 dbhost='dbhost'
 dbuser='dbuser'
 dbpasswd='dbpasswd'
 
+#Where to put the sql file
+sql_file='/var/tmp/surfdrive_accounting.'+date+'.sql'
 
 logfile='/var/log/accounting.log'
 m=re.compile('@')
 m2=re.compile('.+@(.+)')
+
+data=[]
+
+#We want to use thread local variables
+threadlocal=threading.local()
+
+#We want to lock threads as well
+lock=threading.Lock()
 
 def log(text):
     timestamp=get_timestamp()
@@ -41,7 +55,7 @@ def get_eppns():
         sys.exit(1)
     return eppns
 
-def get_bytes_and_nfiles(dir):
+def get_bytes_and_nfiles(dir,lock):
     bytes=0
     nfiles=0
     for root, dirs, files in os.walk(dir):
@@ -52,10 +66,23 @@ def get_bytes_and_nfiles(dir):
                 nfiles=nfiles+1
             except:
                 e=str(sys.exc_info()[0])
+                lock.acquire()
                 log('Error:'+e+'\n')
+                lock.release()
         bytes=bytes+sbytes
 
     return bytes,nfiles
+
+def worker (date,rng,eppns,lock):
+
+    for i in range(rng[0],rng[1]):
+        m3=m2.match(eppns[i])
+        if m3!=None:
+            threadlocal.organisation=m3.group(1)
+            threadlocal.bytes,threadlocal.nfiles=get_bytes_and_nfiles(storage_path+'/'+eppns[i],lock)
+            lock.acquire()
+            data.append(date,[eppns[i],threadlocal.organisation,threadlocal.bytes,threadlocal.nfiles])
+            lock.release()
 
 def get_date():
     tm=time.localtime(time.time())
@@ -71,34 +98,49 @@ def get_timestamp():
 
 def main():
 
-
     date=get_date()
-    sql_file='/var/tmp/surfdrive_accounting.'+date+'.sql'
     eppns=get_eppns()
-    clist=[]
-    file=open(sql_file,'w')
 
-    for eppn in eppns:
-        m3=m2.match(eppn)
-        if m3==None:
-            log('Corrupted input: '+eppn+'\n')
-            sys.exit(1)
-        organisation=m3.group(1)
-        bytes,nfiles=get_bytes_and_nfiles(storage_path+'/'+eppn)
-#        print date+';'+eppn+';'+organisation+';'+str(bytes)+';'+str(nfiles)
+    num_eppns=len(eppns)
+
+    if num_eppns<nthreads: nthreads=1
+
+    ran=0
+    if nthreads>1:
+        ran=num_eppns/(nthreads-1)
+
+    for i in range(0,nthreads):
+        rng=[i*ran,min((i+1)*ran,num_eppns)]
+
+        thread = threading.Thread(target=worker, args=(date,rng,eppns,lock,))
+        thread.setDaemon(True)
+        thread.start()
+
+    main_thread = threading.currentThread()
+    for t in threading.enumerate():
+        if t is not main_thread:
+            t.join()
+
+    file=open(sql_file,'w')
+    for i in range(0,len(data)):
+
+        eppn=data[i][0]
+        organisation=data[i][1]
+        bytes=data[i][2]
+        nfiles=data[i][3]
+
         s="insert into surfdrive_usage (date,eppn,organisation,bytes,nfiles) values ('"+date+"','"+eppn+"','"+organisation+"',"+ str(bytes)+","+str(nfiles)+");"
-#        print s
         file.write(s+'\n')
-        clist.append(s)
 
     file.close()
 
+    s="insert into surfdrive_usage (date,eppn,organisation,bytes,nfiles) values ( %s, %s, %s, %s, %s )"
     conn=mysql.connector.Connect(host=dbhost,user=dbuser,password=dbpasswd,database=db)
     c=conn.cursor()
 
     for s in clist:
 
-        c.execute(s)
+        c.executemany(s,data)
 
     conn.commit()
     c.close()
