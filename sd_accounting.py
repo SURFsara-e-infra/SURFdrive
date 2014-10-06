@@ -71,8 +71,10 @@ def get_bytes_and_nfiles(dir,lock):
 
     return bytes,nfiles
 
-def worker (date,rng,eppns,lock):
+def worker (date,ran,eppns,lock):
 
+GET THREAD ID
+ran[threadid]{0,1}
     for i in range(rng[0],rng[1]):
         m3=m2.match(eppns[i])
         if m3!=None:
@@ -117,7 +119,7 @@ def main():
         
     for i in range(0,nthreads):
 
-        thread = threading.Thread(target=worker, args=(date,rng,eppns,lock,))
+        thread = threading.Thread(target=worker, args=(date,ran,eppns,lock,))
         thread.setDaemon(True)
         thread.start()
 
