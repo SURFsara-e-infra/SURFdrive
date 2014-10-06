@@ -10,21 +10,19 @@ import mysql.connector
 
 
 #Where is the owncloud data stored
-storage_path='/path/to/owncloud-data/'
+storage_path='/bla'
 
 #Number of active threads
 nthreads=4
 
 #Database connection details
-db='db'
-dbhost='dbhost'
-dbuser='dbuser'
-dbpasswd='dbpasswd'
+db='bla'
+dbhost='bla'
+dbuser='bla'
+dbpasswd='bla'
 
-#Where to put the sql file
-sql_file='/var/tmp/surfdrive_accounting.'+date+'.sql'
 
-logfile='/var/log/accounting.log'
+logfile='/var/log/accounting_test.log'
 m=re.compile('@')
 m2=re.compile('.+@(.+)')
 
@@ -98,6 +96,7 @@ def get_timestamp():
 
 def main():
 
+    global nthreads
     date=get_date()
     eppns=get_eppns()
 
@@ -105,12 +104,18 @@ def main():
 
     if num_eppns<nthreads: nthreads=1
 
-    ran=0
-    if nthreads>1:
-        ran=num_eppns/(nthreads-1)
-
+    ran=[]
+    e=nthreads
+    istart=0
+    iend=0
     for i in range(0,nthreads):
-        rng=[i*ran,min((i+1)*ran,num_eppns)]
+        iend=istart+(num_eppns-iend)/e
+        ran.append([istart,iend])
+        istart=iend
+        e=e-1
+        
+        
+    for i in range(0,nthreads):
 
         thread = threading.Thread(target=worker, args=(date,rng,eppns,lock,))
         thread.setDaemon(True)
@@ -121,6 +126,8 @@ def main():
         if t is not main_thread:
             t.join()
 
+#Where to put the sql file
+    sql_file='/var/tmp/surfdrive_accounting_test.'+date+'.sql'
     file=open(sql_file,'w')
     for i in range(0,len(data)):
 
@@ -133,6 +140,7 @@ def main():
         file.write(s+'\n')
 
     file.close()
+"""
 
     s="insert into surfdrive_usage (date,eppn,organisation,bytes,nfiles) values ( %s, %s, %s, %s, %s )"
     conn=mysql.connector.Connect(host=dbhost,user=dbuser,password=dbpasswd,database=db)
@@ -144,6 +152,7 @@ def main():
 
     conn.commit()
     c.close()
+"""
     
 
 if __name__ == '__main__':
