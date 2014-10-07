@@ -10,19 +10,19 @@ import mysql.connector
 
 
 #Where is the owncloud data stored
-storage_path='/bla'
+storage_path='/path/to/storage'
 
 #Number of active threads
 nthreads=4
 
 #Database connection details
-db='bla'
-dbhost='bla'
-dbuser='bla'
-dbpasswd='bla'
+db='db'
+dbhost='dbhost'
+dbuser='dbuser'
+dbpasswd='dbpasswd'
 
 
-logfile='/var/log/accounting_test.log'
+logfile='/var/log/accounting.log'
 m=re.compile('@')
 m2=re.compile('.+@(.+)')
 
@@ -71,17 +71,16 @@ def get_bytes_and_nfiles(dir,lock):
 
     return bytes,nfiles
 
-def worker (date,ran,eppns,lock):
-
-GET THREAD ID
-ran[threadid]{0,1}
-    for i in range(rng[0],rng[1]):
+def worker (date,ran,eppns,lock,threadid):
+    start=ran[threadid][0]
+    end=ran[threadid][1]
+    for i in range(start,end):
         m3=m2.match(eppns[i])
         if m3!=None:
             threadlocal.organisation=m3.group(1)
             threadlocal.bytes,threadlocal.nfiles=get_bytes_and_nfiles(storage_path+'/'+eppns[i],lock)
             lock.acquire()
-            data.append(date,[eppns[i],threadlocal.organisation,threadlocal.bytes,threadlocal.nfiles])
+            data.append([date,eppns[i],threadlocal.organisation,threadlocal.bytes,threadlocal.nfiles])
             lock.release()
 
 def get_date():
@@ -115,11 +114,10 @@ def main():
         ran.append([istart,iend])
         istart=iend
         e=e-1
-        
-        
+
     for i in range(0,nthreads):
 
-        thread = threading.Thread(target=worker, args=(date,ran,eppns,lock,))
+        thread = threading.Thread(target=worker, args=(date,ran,eppns,lock,i,))
         thread.setDaemon(True)
         thread.start()
 
@@ -129,20 +127,21 @@ def main():
             t.join()
 
 #Where to put the sql file
-    sql_file='/var/tmp/surfdrive_accounting_test.'+date+'.sql'
+    sql_file='/var/tmp/surfdrive_accounting.'+date+'.sql'
     file=open(sql_file,'w')
     for i in range(0,len(data)):
 
-        eppn=data[i][0]
-        organisation=data[i][1]
-        bytes=data[i][2]
-        nfiles=data[i][3]
+
+        date=data[i][0]
+        eppn=data[i][1]
+        organisation=data[i][2]
+        bytes=data[i][3]
+        nfiles=data[i][4]
 
         s="insert into surfdrive_usage (date,eppn,organisation,bytes,nfiles) values ('"+date+"','"+eppn+"','"+organisation+"',"+ str(bytes)+","+str(nfiles)+");"
         file.write(s+'\n')
 
     file.close()
-"""
 
     s="insert into surfdrive_usage (date,eppn,organisation,bytes,nfiles) values ( %s, %s, %s, %s, %s )"
     conn=mysql.connector.Connect(host=dbhost,user=dbuser,password=dbpasswd,database=db)
@@ -154,7 +153,6 @@ def main():
 
     conn.commit()
     c.close()
-"""
     
 
 if __name__ == '__main__':
