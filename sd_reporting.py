@@ -87,7 +87,7 @@ def get_timestamp():
 def main(argv):
 
     if len(argv)==0:
-        print 'sd_reporting.py [-m |-w]'
+        print 'sd_reporting.py [-m |-d]'
         sys.exit(0)
 
     month=False
