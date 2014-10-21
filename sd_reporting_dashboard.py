@@ -157,6 +157,100 @@ def main(operation):
         else:
             log('Successfully performed '+operation+' for '+odict[organisation]+'. returncode: '+returncode+', returntext: '+returntext+'.')
 
+    s="select count(eppn) from surfdrive_usage where date='"+pit+"';"
+    c.execute(s)
+    users=str(c.fetchone()[0])
+
+    f=open(tmpfile,'w')
+
+    if operation=='er_InsertReport':
+        php_array= \
+              '\"Value\" => '+users+',\n       \
+               \"Type\" => \"Totaal aantal gebruikers\",\n \
+               \"DepartmentList\"=> \"MWS,AA\",\n   \
+               \"Period\" => \"'+last_month+'\",\n  \
+               \"IsKPI\" => false,\n                \
+               \"IsHidden\" => false,\n'
+        f.write(php_script%(php_array,'er_InsertReport'))
+    elif operation=='er_DeleteReport':
+        php_array= \
+              '\"Type\" => \"Totaal aantal gebruikers\",\n \
+               \"Period\" => \"'+last_month+'\",\n'
+        f.write(php_script%(php_array,'er_DeleteReport'))
+    elif operation=='er_ApproveReport':
+        php_array= \
+              '\"Type\" => \"Totaal aantal gebruikers\",\n \
+               \"Period\" => \"'+last_month+'\",\n'
+        f.write(php_script%(php_array,'er_ApproveReport'))
+    else:
+        log('You should not get here in the code.\n')
+        sys.exit(1)
+
+    f.close()
+
+    command='php -f '+tmpfile
+    retval,output=commands.getstatusoutput(command)
+
+    if retval!=0:
+        log('Unable to perform '+operation+' for totaal aantal gebruikers.')
+        log(output)
+        sys.exit(1)
+
+    returncode=re.search('(?<=\[ReturnCode\]\s\=\>\s).+',output).group(0)
+    returntext=re.search('(?<=\[ReturnText\]\s\=\>\s).+',output).group(0)
+
+    if returncode!='1':
+        log('Unable to perform  '+operation+' for totaal aantal gebruikers failed. returncode: '+returncode+', returntext: '+returntext+'.')
+    else:
+        log('Successfully performed '+operation+' for totaal aantal gebruikers. returncode: '+returncode+', returntext: '+returntext+'.')
+
+    s="select sum(bytes) from surfdrive_usage where date='"+pit+"';"
+    c.execute(s)
+    terabytes=str(round(float(c.fetchone()[0])/TB,3))
+
+    f=open(tmpfile,'w')
+
+    if operation=='er_InsertReport':
+        php_array= \
+              '\"Value\" => '+terabytes+',\n       \
+               \"Type\" => \"Hoeveelheid storage\",\n \
+               \"DepartmentList\"=> \"MWS,AA\",\n   \
+               \"Period\" => \"'+last_month+'\",\n  \
+               \"IsKPI\" => false,\n                \
+               \"IsHidden\" => false,\n'
+        f.write(php_script%(php_array,'er_InsertReport'))
+    elif operation=='er_DeleteReport':
+        php_array= \
+              '\"Type\" => \"Hoeveelheid storage\",\n \
+               \"Period\" => \"'+last_month+'\",\n'
+        f.write(php_script%(php_array,'er_DeleteReport'))
+    elif operation=='er_ApproveReport':
+        php_array= \
+              '\"Type\" => \"Hoeveelheid storage\",\n \
+               \"Period\" => \"'+last_month+'\",\n'
+        f.write(php_script%(php_array,'er_ApproveReport'))
+    else:
+        log('You should not get here in the code.\n')
+        sys.exit(1)
+
+    f.close()
+
+    command='php -f '+tmpfile
+    retval,output=commands.getstatusoutput(command)
+
+    if retval!=0:
+        log('Unable to perform '+operation+' for hoeveelheid storage.')
+        log(output)
+        sys.exit(1)
+
+    returncode=re.search('(?<=\[ReturnCode\]\s\=\>\s).+',output).group(0)
+    returntext=re.search('(?<=\[ReturnText\]\s\=\>\s).+',output).group(0)
+
+    if returncode!='1':
+        log('Unable to perform  '+operation+' for hoeveelheid storage failed. returncode: '+returncode+', returntext: '+returntext+'.')
+    else:
+        log('Successfully performed '+operation+' for hoeveelheid storage. returncode: '+returncode+', returntext: '+returntext+'.')
+
     os.remove(tmpfile)
 
     conn.commit()
