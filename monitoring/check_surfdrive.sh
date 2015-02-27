@@ -13,20 +13,23 @@ STATE_DEPENDENT=4
 
 LOCK=/var/lock/subsys/check_surfdrive
 
+SQLITE_DIR=/var/lib/sqlite
+SQLITEDB="surfdrive.db"
+
 DBUSER='dbuser'
 DBPASSWD='dbpasswd'
 DB='db'
 DBHOST='dbhost'
 
-CHECK_NAME="NAME"
+CHECK_NAME="SURFDRIVE"
 
-LOGFILE=/var/log/monitor.log
-PERFORMANCELOGFILE=/var/log/performance.log
+LOGFILE=/var/log/surfdrivemonitor.log
+PERFORMANCELOGFILE=/var/log/surfdriveperformance.log
 
 USER=user
-PASSWD='ppasswd'
+PASSWD='passwd'
 
-REMOTE_SERVER=remote.server.org
+REMOTE_SERVER=surfdrive.surf.nl
 STORAGE_PATH=/files/remote.php/nonshib-webdav
 PROTOCOL=https
 SITE=${PROTOCOL}://${REMOTE_SERVER}/${STORAGE_PATH}
@@ -36,7 +39,7 @@ CURL=curl
 
 if [ -f ${LOCK} ]; then
 # previous monitoring job is still running
-    exit STATE_OK
+    exit $STATE_OK
 fi
 
 touch ${LOCK}
@@ -59,14 +62,48 @@ timestamp () {
 log () {
 timestamp=`date --rfc-3339=seconds`
 echo $timestamp $1 >>${LOGFILE}
+#log result into database
 insert_av_sql "$timestamp" "$1"
+#log result into database but in case the database is unavailable, we have a copy in sqlite
+insert_sqlite "$timestamp" "$1"
+}
+
+insert_sqlite () {
+
+    cd $SQLITE_DIR
+    echo "insert into availability (timestamp,result) values( '"$1"','"$2"' );" > $TMPFILE3
+    sqlite3 $SQLITEDB <$TMPFILE3
+    cd - >/dev/null 2>&1
+
 }
 
 insert_av_sql () {
 
-echo "insert into availability (timestamp,result) values( '"$1"','"$2"' );" > $TMPFILE3
-mysql -u ${DBUSER} --password=${DBPASSWD} -h ${DBHOST} ${DB} <$TMPFILE3 2>/dev/null
+#check if we are in maintenance
+echo "select count(*) from maintenances where start<='"$1"' and end >='"$1"' limit 1;" > $TMPFILE3
+r=`mysql -u ${DBUSER} --password=${DBPASSWD} -h ${DBHOST} ${DB} <$TMPFILE3 2>/dev/null`
+result=`echo $r | awk '{print $2}'`
 
+
+if [ "x$result" == "x0" ]; then
+#We are not in maintenance
+    echo "insert into availability (timestamp,result) values( '"$1"','"$2"' );" > $TMPFILE3
+    mysql -u ${DBUSER} --password=${DBPASSWD} -h ${DBHOST} ${DB} <$TMPFILE3 2>/dev/null
+else
+#We are in maintenance, now check if is is scheduled or not
+    echo "select count(*) from maintenances where start<='"$1"' and end >='"$1"' and scheduled=1 limit 1;" > $TMPFILE3
+    r=`mysql -u ${DBUSER} --password=${DBPASSWD} -h ${DBHOST} ${DB} <$TMPFILE3 2>/dev/null`
+    result=`echo $r | awk '{print $2}'`
+    if [ "x$result" == "x0" ]; then
+#We are in nonscheduled maintenance
+        echo "insert into availability (timestamp,result,maintenance,scheduled) values( '"$1"','"$2"',"1","0" );" > $TMPFILE3
+        mysql -u ${DBUSER} --password=${DBPASSWD} -h ${DBHOST} ${DB} <$TMPFILE3 2>/dev/null
+    else
+#We are in scheduled maintenance
+        echo "insert into availability (timestamp,result,maintenance,scheduled) values( '"$1"','"$2"',"1","1" );" > $TMPFILE3
+        mysql -u ${DBUSER} --password=${DBPASSWD} -h ${DBHOST} ${DB} <$TMPFILE3 2>/dev/null
+    fi
+fi
 }
 
 insert_pf_sql () {
@@ -79,7 +116,7 @@ mysql -u ${DBUSER} --password=${DBPASSWD} -h ${DBHOST} ${DB} <$TMPFILE3 2>/dev/n
 log_performance () {
 timestamp=`date --rfc-3339=seconds`
 echo $timestamp $1": "$2" secs" >>${PERFORMANCELOGFILE}
-insert_pf_sql "$timestamp" "$1" "$2"
+#insert_pf_sql "$timestamp" "$1" "$2"
 }
 
 cleanup () {
